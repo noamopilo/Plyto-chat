@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, session, redirect, url_for
 from flask_socketio import join_room, leave_room, send, SocketIO
 import random
 from string import ascii_uppercase
+from datetime import datetime
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "fhsjfks"
@@ -53,20 +54,24 @@ def home():
 @app.route("/room")
 def room():
     room = session.get("room")
+    name = session.get("name")
     if room is None or session.get("name") is None or room not in rooms:
         return redirect(url_for("home"))
     
-    return render_template("room.html", code=room, messages=rooms[room]["messages"])
+    return render_template("room.html", code=room, messages=rooms[room]["messages"], name=name)
 
 @socketio.on("message")
 def message(data):
     room = session.get("room")
+    now = datetime.now().strftime("%d-%m-%Y %H:%M")
+    
     if room not in rooms:
         return
     
     content = {
         "name": session.get("name"),
-        "message": data["data"]
+        "message": data["data"],
+        "datetime": now
     }
     
     send(content, to=room)
@@ -85,7 +90,10 @@ def connect(auth):
         return
     
     join_room(room)
-    send({"name": name, "message": "has entered the room"}, to=room)
+    
+    now = datetime.now().strftime("%d-%m-%Y %H:%M")
+    
+    send({"name": name, "message": "has entered the room", "datetime": now}, to=room)
     rooms[room]["members"] += 1
     print(f"{name} joined room {room}") 
 
@@ -95,12 +103,16 @@ def disconnect():
     name = session.get("name")
     leave_room(room)
     
+    now = datetime.now().strftime("%d-%m-%M %H:%M")
+    
     if room in rooms:
         rooms[room]["members"] -=1
         if rooms[room]["members"] <= 0:
             del rooms[room]
+            return
+        
     
-    send({"name": name, "message": "has left the room"}, to=room)
+    send({"name": name, "message": "has left the room", "datetime": now}, to=room)
     print(f"{name} has left the room {room}")
 
 if __name__ == "__main__":
